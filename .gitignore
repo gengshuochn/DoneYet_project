@@ -9,3 +9,6 @@ data/*.db
 
 .env
 .env.*
+
+项目需求.md
+需求demo.md
