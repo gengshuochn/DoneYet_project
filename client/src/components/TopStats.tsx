@@ -91,10 +91,10 @@ export function TopStats({ date, bmr, onBmrChange, intake, workoutBurn }: Props)
   return (
     <header className="topbar">
       <div className="brand-panel">
-        <div>
-          <h1 className="pixel-logo">DoneYet</h1>
-          <p>{formatDisplayDate(date)}</p>
-        </div>
+        <h1 className="pixel-logo" aria-label="DoneYet">
+          DoneYet
+        </h1>
+        <p>{formatDisplayDate(date)}</p>
       </div>
       <div className="stats-grid">
         <BmrStat value={bmr} onChange={onBmrChange} />

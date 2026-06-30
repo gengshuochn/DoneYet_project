@@ -41,34 +41,26 @@ function App() {
   useEffect(() => localStorage.setItem('doneyet.records.v2', JSON.stringify(records)), [records]);
   useEffect(() => localStorage.setItem('doneyet.bmr', JSON.stringify(bmr)), [bmr]);
 
-  const todayMeals = useMemo(() => meals.filter((meal) => meal.date === selectedDate), [meals, selectedDate]);
-  const todayWorkouts = useMemo(() => workouts.filter((workout) => workout.date === selectedDate), [workouts, selectedDate]);
-  const intake = useMemo(() => sumMeals(todayMeals), [todayMeals]);
-  const workoutBurn = useMemo(() => sumWorkoutBurn(todayWorkouts), [todayWorkouts]);
+  const dayMeals = useMemo(() => meals.filter((meal) => meal.date === selectedDate), [meals, selectedDate]);
+  const dayWorkouts = useMemo(() => workouts.filter((workout) => workout.date === selectedDate), [workouts, selectedDate]);
+  const intake = useMemo(() => sumMeals(dayMeals), [dayMeals]);
+  const workoutBurn = useMemo(() => sumWorkoutBurn(dayWorkouts), [dayWorkouts]);
 
   return (
     <main className="app-shell">
       <TopStats date={selectedDate} bmr={bmr} onBmrChange={setBmr} intake={intake} workoutBurn={workoutBurn} />
       <div className="toolbar-row">
         <Tabs active={activeTab} onChange={setActiveTab} />
-        <label className="date-picker">
-          日期
-          <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
-        </label>
+        {activeTab !== 'data' && (
+          <label className="date-picker">
+            日期
+            <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+          </label>
+        )}
       </div>
       {activeTab === 'diet' && <DietModule date={selectedDate} meals={meals} setMeals={setMeals} />}
       {activeTab === 'fitness' && <FitnessModule date={selectedDate} workouts={workouts} setWorkouts={setWorkouts} />}
-      {activeTab === 'data' && (
-        <DataModule
-          date={selectedDate}
-          setDate={setSelectedDate}
-          bmr={bmr}
-          records={records}
-          setRecords={setRecords}
-          meals={meals}
-          workouts={workouts}
-        />
-      )}
+      {activeTab === 'data' && <DataModule records={records} setRecords={setRecords} />}
     </main>
   );
 }
