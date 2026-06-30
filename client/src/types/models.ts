@@ -2,6 +2,8 @@ export type Id = string;
 
 export type TabKey = 'diet' | 'fitness' | 'data';
 
+export type BodyMetricType = 'weight' | 'chest' | 'waist' | 'bodyFat';
+
 export type MealItem = {
   id: Id;
   mealId: Id;
@@ -48,11 +50,8 @@ export type Workout = {
 export type BodyRecord = {
   id: Id;
   date: string;
-  weight: number;
-  chest: number;
-  waist: number;
-  bodyFat: number;
-  bmr: number;
+  type: BodyMetricType;
+  value: number;
   createdAt: string;
   updatedAt: string;
 };

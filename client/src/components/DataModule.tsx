@@ -1,11 +1,26 @@
-import { Ban, CheckCircle2, ChevronLeft, ChevronRight, CircleDotDashed, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, CheckCircle2, ChevronLeft, ChevronRight, CircleDotDashed, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { BodyRecord, Meal, Workout } from '../types/models';
+import type { BodyMetricType, BodyRecord, Meal, Workout } from '../types/models';
 import { addMonths, getMonthDays, monthKey, nowISO, todayISO } from '../utils/date';
-import { latestBodyRecord, makeCalendarDay, normalizeNumber } from '../utils/math';
+import { bodyMetricLabels, bodyMetricUnits, latestMetric, makeBodyChartData, makeCalendarDay, normalizeNumber } from '../utils/math';
 
-function stamp<T extends object>(value: T): T & { updatedAt: string } {
-  return { ...value, updatedAt: nowISO() };
+type EditorState = {
+  id?: string;
+  date: string;
+  type: BodyMetricType;
+  value: string;
+};
+
+const metricOptions: BodyMetricType[] = ['weight', 'chest', 'waist', 'bodyFat'];
+
+function metricColor(type: BodyMetricType) {
+  return {
+    weight: '#7c8cff',
+    chest: '#42d392',
+    waist: '#4da3ff',
+    bodyFat: '#ffb86b'
+  }[type];
 }
 
 export function DataModule({
@@ -14,7 +29,8 @@ export function DataModule({
   meals,
   workouts,
   date,
-  setDate
+  setDate,
+  bmr
 }: {
   records: BodyRecord[];
   setRecords: (records: BodyRecord[]) => void;
@@ -22,35 +38,68 @@ export function DataModule({
   workouts: Workout[];
   date: string;
   setDate: (date: string) => void;
+  bmr: number;
 }) {
-  const latest = latestBodyRecord(records);
-  const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const chartData = useMemo(() => makeBodyChartData(records), [records]);
   const { days, firstWeekday, year, month } = getMonthDays(date);
 
-  const addRecord = () => {
-    const timestamp = nowISO();
-    setRecords([
-      ...records,
-      {
-        id: crypto.randomUUID(),
-        date,
-        weight: latest?.weight ?? 75,
-        chest: latest?.chest ?? 95,
-        waist: latest?.waist ?? 80,
-        bodyFat: latest?.bodyFat ?? 18,
-        bmr: latest?.bmr ?? 1700,
-        createdAt: timestamp,
-        updatedAt: timestamp
-      }
-    ]);
+  const openCreateEditor = () => {
+    setEditor({ date, type: 'weight', value: '' });
   };
 
-  const updateRecord = (record: BodyRecord) => setRecords(records.map((item) => (item.id === record.id ? stamp(record) : item)));
-  const deleteRecord = (id: string) => {
-    if (window.confirm('删除这条身体数据？')) {
-      setRecords(records.filter((record) => record.id !== id));
-    }
+  const openPointEditor = (type: BodyMetricType, payload: { date?: string; [key: string]: unknown }) => {
+    if (!payload.date || typeof payload[type] !== 'number') return;
+    const existing = records.find((record) => record.date === payload.date && record.type === type);
+    setEditor({
+      id: existing?.id,
+      date: payload.date,
+      type,
+      value: String(payload[type])
+    });
   };
+
+  const saveEditor = () => {
+    if (!editor) return;
+    const value = normalizeNumber(editor.value);
+    const timestamp = nowISO();
+
+    if (editor.id) {
+      setRecords(
+        records.map((record) =>
+          record.id === editor.id
+            ? { ...record, date: editor.date, type: editor.type, value, updatedAt: timestamp }
+            : record
+        )
+      );
+    } else {
+      const existing = records.find((record) => record.date === editor.date && record.type === editor.type);
+      if (existing) {
+        setRecords(records.map((record) => (record.id === existing.id ? { ...record, value, updatedAt: timestamp } : record)));
+      } else {
+        setRecords([
+          ...records,
+          {
+            id: crypto.randomUUID(),
+            date: editor.date,
+            type: editor.type,
+            value,
+            createdAt: timestamp,
+            updatedAt: timestamp
+          }
+        ]);
+      }
+    }
+
+    setDate(editor.date);
+    setEditor(null);
+  };
+
+  const latestValues = metricOptions.map((type) => {
+    const record = latestMetric(records, type, date);
+    return { type, value: record?.value };
+  });
 
   return (
     <section className="module data-module">
@@ -59,70 +108,102 @@ export function DataModule({
           <p>DATA</p>
           <h2>身体数据</h2>
         </div>
-        <button type="button" className="primary" onClick={addRecord}>
+        <button type="button" className="primary" onClick={openCreateEditor}>
           <Plus size={18} />
           添加数据
         </button>
       </div>
 
-      <div className="summary-row">
-        <div className="summary-card">
-          <span>当前体脂率</span>
-          <strong>{latest ? `${latest.bodyFat}%` : '-'}</strong>
+      {editor && (
+        <div
+          className="metric-editor-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) saveEditor();
+          }}
+        >
+          <div className="metric-editor-card" ref={editorRef}>
+            <div className="editor-head">
+              <h3>{editor.id ? '修改身体数据' : '添加身体数据'}</h3>
+              <button type="button" className="icon-button" onClick={() => setEditor(null)} aria-label="关闭编辑卡片">
+                <X size={17} />
+              </button>
+            </div>
+            <div className="editor-grid">
+              <label>
+                时间
+                <input type="date" value={editor.date} onChange={(event) => setEditor({ ...editor, date: event.target.value })} />
+              </label>
+              <label>
+                类型
+                <select value={editor.type} onChange={(event) => setEditor({ ...editor, type: event.target.value as BodyMetricType })}>
+                  {metricOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {bodyMetricLabels[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                数值
+                <input
+                  type="number"
+                  autoFocus
+                  value={editor.value}
+                  placeholder={bodyMetricUnits[editor.type]}
+                  onChange={(event) => setEditor({ ...editor, value: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') saveEditor();
+                  }}
+                />
+              </label>
+            </div>
+            <div className="editor-actions">
+              <button type="button" className="primary" onClick={saveEditor}>
+                <Save size={17} />
+                保存
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="summary-card">
-          <span>当前基础代谢</span>
-          <strong>{latest ? `${latest.bmr} kcal` : '-'}</strong>
-        </div>
+      )}
+
+      <div className="summary-row four">
+        {latestValues.map((item) => (
+          <div className="summary-card" key={item.type}>
+            <span>{bodyMetricLabels[item.type]}</span>
+            <strong>{item.value === undefined ? '-' : `${item.value} ${bodyMetricUnits[item.type]}`}</strong>
+          </div>
+        ))}
       </div>
 
       <div className="chart-card">
-        <h3>体重 / 胸围 / 腰围趋势</h3>
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={sortedRecords} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+        <h3>身体指标趋势</h3>
+        <ResponsiveContainer width="100%" height={360}>
+          <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
             <XAxis dataKey="date" stroke="rgba(255,255,255,.45)" />
             <YAxis stroke="rgba(255,255,255,.45)" />
             <Tooltip contentStyle={{ background: '#11151c', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8 }} />
-            <Line type="monotone" dataKey="weight" name="体重" stroke="#7c8cff" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="chest" name="胸围" stroke="#42d392" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="waist" name="腰围" stroke="#4da3ff" strokeWidth={2} dot={false} />
+            {metricOptions.map((type) => (
+              <Line
+                key={type}
+                type="monotone"
+                dataKey={type}
+                name={bodyMetricLabels[type]}
+                stroke={metricColor(type)}
+                strokeWidth={2}
+                connectNulls
+                activeDot={{
+                  r: 6,
+                  onClick: (props: unknown) => {
+                    const payload = (props as { payload?: { date?: string; [key: string]: unknown } }).payload;
+                    if (payload) openPointEditor(type, payload);
+                  }
+                }}
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="records-table">
-        {records.map((record) => (
-          <div className="body-grid" key={record.id}>
-            <label>
-              日期
-              <input type="date" value={record.date} onChange={(event) => updateRecord({ ...record, date: event.target.value })} />
-            </label>
-            <label>
-              体重 kg
-              <input type="number" value={record.weight} onChange={(event) => updateRecord({ ...record, weight: normalizeNumber(event.target.value) })} />
-            </label>
-            <label>
-              胸围 cm
-              <input type="number" value={record.chest} onChange={(event) => updateRecord({ ...record, chest: normalizeNumber(event.target.value) })} />
-            </label>
-            <label>
-              腰围 cm
-              <input type="number" value={record.waist} onChange={(event) => updateRecord({ ...record, waist: normalizeNumber(event.target.value) })} />
-            </label>
-            <label>
-              体脂率 %
-              <input type="number" value={record.bodyFat} onChange={(event) => updateRecord({ ...record, bodyFat: normalizeNumber(event.target.value) })} />
-            </label>
-            <label>
-              BMR kcal
-              <input type="number" value={record.bmr} onChange={(event) => updateRecord({ ...record, bmr: normalizeNumber(event.target.value) })} />
-            </label>
-            <button type="button" className="icon-button danger" onClick={() => deleteRecord(record.id)} aria-label="删除身体数据">
-              <Trash2 size={17} />
-            </button>
-          </div>
-        ))}
       </div>
 
       <div className="calendar-card">
@@ -146,7 +227,7 @@ export function DataModule({
         <div className="calendar-grid">
           {Array.from({ length: firstWeekday }).map((_, index) => <div key={`blank-${index}`} />)}
           {days.map((day) => {
-            const status = makeCalendarDay(day, meals, workouts, records);
+            const status = makeCalendarDay(day, meals, workouts, bmr);
             return (
               <button type="button" className={`calendar-day ${status.status} ${day === date ? 'selected' : ''}`} key={day} onClick={() => setDate(day)}>
                 <div className="day-head">

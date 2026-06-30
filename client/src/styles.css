@@ -15,7 +15,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -23,7 +24,8 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+select {
   width: 100%;
   color: #edeff2;
   background: #11151b;
@@ -33,7 +35,8 @@ input {
   outline: none;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #7c8cff;
 }
 
@@ -77,19 +80,17 @@ p {
   padding: 16px;
 }
 
-.logo {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: #edeff2;
-  color: #0b0d10;
+.pixel-logo {
+  color: #edeff2;
+  font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 34px;
   font-weight: 900;
-}
-
-.brand-panel h1 {
-  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 1px;
+  text-shadow:
+    2px 0 0 #1e2229,
+    0 2px 0 #1e2229,
+    2px 2px 0 #4da3ff;
 }
 
 .brand-panel p,
@@ -140,6 +141,33 @@ label {
 
 .stat-card.negative strong {
   color: #ff8a8a;
+}
+
+.stat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mini-icon-button {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #2a2f38;
+  border-radius: 6px;
+  background: #1e2229;
+  color: #c8ced8;
+  padding: 0;
+}
+
+.stat-inline-input {
+  height: 30px;
+  padding: 4px 7px;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .toolbar-row {
@@ -235,8 +263,7 @@ label {
 }
 
 .card-list,
-.data-module,
-.records-table {
+.data-module {
   display: grid;
   gap: 12px;
 }
@@ -330,6 +357,10 @@ label {
   gap: 12px;
 }
 
+.summary-row.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .summary-card {
   padding: 16px;
   display: grid;
@@ -347,17 +378,6 @@ label {
 .chart-card h3,
 .calendar-card h3 {
   margin-bottom: 12px;
-}
-
-.body-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr)) 42px;
-  gap: 8px;
-  align-items: end;
-  background: #15181d;
-  border: 1px solid #2a2f38;
-  border-radius: 8px;
-  padding: 12px;
 }
 
 .calendar-title {
@@ -431,6 +451,45 @@ label {
   margin-top: 12px;
 }
 
+.metric-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: start center;
+  padding-top: 120px;
+  background: rgba(0, 0, 0, .28);
+}
+
+.metric-editor-card {
+  width: min(620px, calc(100vw - 48px));
+  background: #15181d;
+  border: 1px solid #2a2f38;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .42);
+  padding: 16px;
+}
+
+.editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 @media (max-width: 1180px) {
   .topbar {
     grid-template-columns: 1fr;
@@ -453,7 +512,8 @@ label {
 
   .food-grid,
   .workout-grid,
-  .body-grid {
+  .editor-grid,
+  .summary-row.four {
     grid-template-columns: 1fr;
   }
 

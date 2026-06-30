@@ -45,11 +45,13 @@ export const backendApi = {
   deleteWorkoutItem: (id: string) => request<void>(`/workout-items/${id}`, { method: 'DELETE' }),
 
   getBodyRecords: () => request<BodyRecord[]>('/body-records'),
-  createBodyRecord: (payload: Omit<BodyRecord, 'id' | 'createdAt' | 'updatedAt'>) =>
+  createBodyRecord: (payload: Pick<BodyRecord, 'date' | 'type' | 'value'>) =>
     request<BodyRecord>('/body-records', { method: 'POST', body: JSON.stringify(payload) }),
-  updateBodyRecord: (id: string, payload: Partial<BodyRecord>) =>
+  updateBodyRecord: (id: string, payload: Partial<Pick<BodyRecord, 'date' | 'type' | 'value'>>) =>
     request<BodyRecord>(`/body-records/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteBodyRecord: (id: string) => request<void>(`/body-records/${id}`, { method: 'DELETE' }),
+  getBmr: () => request<{ bmr: number }>('/settings/bmr'),
+  updateBmr: (bmr: number) => request<{ bmr: number }>('/settings/bmr', { method: 'PATCH', body: JSON.stringify({ bmr }) }),
 
   getDailySummary: (date: string) => request<DailySummary>(`/summary/daily?date=${date}`),
   getCalendar: (year: number, month: number) => request<CalendarDay[]>(`/calendar?year=${year}&month=${month}`)
