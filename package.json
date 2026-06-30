@@ -1,0 +1,13 @@
+{
+  "name": "doneyet",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "client:dev": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "client:preview": "npm --prefix client run preview",
+    "server:dev": "echo \"server is not implemented yet\"",
+    "dev": "npm run client:dev",
+    "build": "npm run client:build"
+  }
+}
