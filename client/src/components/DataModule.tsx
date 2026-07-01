@@ -1,9 +1,9 @@
-import { Plus, Save, X } from 'lucide-react';
+import { Ban, CheckCircle2, ChevronLeft, ChevronRight, CircleDotDashed, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { BodyMetricType, BodyRecord } from '../types/models';
-import { nowISO, todayISO } from '../utils/date';
-import { bodyMetricLabels, bodyMetricUnits, makeBodyChartData, normalizeNumber } from '../utils/math';
+import type { BodyMetricType, BodyRecord, Meal, Workout } from '../types/models';
+import { addMonths, getMonthDays, monthKey, nowISO, todayISO } from '../utils/date';
+import { bodyMetricLabels, bodyMetricUnits, makeBodyChartData, makeCalendarDay, normalizeNumber } from '../utils/math';
 
 type EditorState = {
   id?: string;
@@ -25,13 +25,21 @@ function metricColor(type: BodyMetricType) {
 
 export function DataModule({
   records,
-  setRecords
+  setRecords,
+  meals,
+  workouts,
+  bmr
 }: {
   records: BodyRecord[];
   setRecords: (records: BodyRecord[]) => void;
+  meals: Meal[];
+  workouts: Workout[];
+  bmr: number;
 }) {
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [calendarDate, setCalendarDate] = useState(todayISO());
   const chartData = useMemo(() => makeBodyChartData(records), [records]);
+  const { days, firstWeekday, year, month } = getMonthDays(calendarDate);
 
   const openCreateEditor = () => {
     setEditor({ date: todayISO(), type: 'weight', value: '' });
@@ -178,6 +186,47 @@ export function DataModule({
             ))}
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className="calendar-card">
+        <div className="calendar-title">
+          <h3>{year} 年 {month} 月完成日历</h3>
+          <div className="calendar-actions">
+            <button type="button" className="icon-button" onClick={() => setCalendarDate(addMonths(calendarDate, -1))} aria-label="上个月">
+              <ChevronLeft size={18} />
+            </button>
+            <button type="button" className="icon-button" onClick={() => setCalendarDate(todayISO())} aria-label="回到本月">
+              <RotateCcw size={17} />
+            </button>
+            <button type="button" className="icon-button" onClick={() => setCalendarDate(addMonths(calendarDate, 1))} aria-label="下个月">
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="calendar-weekdays">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+        <div className="calendar-grid">
+          {Array.from({ length: firstWeekday }).map((_, index) => <div key={`blank-${index}`} />)}
+          {days.map((day) => {
+            const status = makeCalendarDay(day, meals, workouts, bmr);
+            return (
+              <div className={`calendar-day ${status.status}`} key={day}>
+                <div className="day-head">
+                  <strong>{Number(day.slice(-2))}</strong>
+                  {status.status === 'complete' ? <CheckCircle2 size={18} /> : status.status === 'partial' ? <CircleDotDashed size={18} /> : <Ban size={18} />}
+                </div>
+                <span>{status.calorieBalance > 0 ? '+' : ''}{status.calorieBalance} kcal</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="calendar-legend">
+          <span><CheckCircle2 size={15} />饮食和训练</span>
+          <span><CircleDotDashed size={15} />完成一项</span>
+          <span><Ban size={15} />未记录</span>
+          <span>{monthKey(calendarDate)}</span>
+        </div>
       </div>
     </section>
   );

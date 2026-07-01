@@ -60,7 +60,7 @@ function App() {
       </div>
       {activeTab === 'diet' && <DietModule date={selectedDate} meals={meals} setMeals={setMeals} />}
       {activeTab === 'fitness' && <FitnessModule date={selectedDate} workouts={workouts} setWorkouts={setWorkouts} />}
-      {activeTab === 'data' && <DataModule records={records} setRecords={setRecords} />}
+      {activeTab === 'data' && <DataModule records={records} setRecords={setRecords} meals={meals} workouts={workouts} bmr={bmr} />}
     </main>
   );
 }

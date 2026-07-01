@@ -12,6 +12,34 @@ type Props = {
   workoutBurn: number;
 };
 
+const pixelLetters: Record<string, string[]> = {
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  o: ['00000', '01110', '10001', '10001', '10001', '10001', '01110'],
+  n: ['00000', '11110', '10001', '10001', '10001', '10001', '10001'],
+  e: ['00000', '01110', '10001', '11111', '10000', '10001', '01110'],
+  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  t: ['00100', '00100', '11111', '00100', '00100', '00101', '00010']
+};
+
+function PixelLogo() {
+  return (
+    <div className="pixel-word" aria-label="DoneYet" role="img">
+      {'DoneYet'.split('').map((letter, letterIndex) => (
+        <div className="pixel-letter" key={`${letter}-${letterIndex}`}>
+          {pixelLetters[letter].flatMap((row, rowIndex) =>
+            row.split('').map((cell, colIndex) => (
+              <span
+                className={cell === '1' ? 'pixel-cell on' : 'pixel-cell'}
+                key={`${rowIndex}-${colIndex}`}
+              />
+            ))
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Stat({
   label,
   value,
@@ -91,9 +119,7 @@ export function TopStats({ date, bmr, onBmrChange, intake, workoutBurn }: Props)
   return (
     <header className="topbar">
       <div className="brand-panel">
-        <h1 className="pixel-logo" aria-label="DoneYet">
-          DoneYet
-        </h1>
+        <PixelLogo />
         <p>{formatDisplayDate(date)}</p>
       </div>
       <div className="stats-grid">

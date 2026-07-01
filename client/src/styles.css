@@ -55,7 +55,7 @@ p {
 
 .topbar {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 380px 1fr;
   gap: 18px;
   align-items: stretch;
   margin-bottom: 14px;
@@ -80,19 +80,31 @@ p {
   padding: 0 8px 0 0;
 }
 
-.pixel-logo {
-  color: #edeff2;
-  font-family: Impact, "Arial Black", "Courier New", ui-monospace, monospace;
-  font-size: 44px;
-  font-weight: 900;
-  line-height: .88;
-  letter-spacing: 2px;
-  text-transform: none;
-  text-shadow:
-    1px 0 0 #edeff2,
-    0 1px 0 #edeff2,
-    2px 2px 0 rgba(77, 163, 255, .26),
-    0 0 14px rgba(237, 239, 242, .18);
+.pixel-word {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: max-content;
+  filter: drop-shadow(0 0 10px rgba(237, 239, 242, .16));
+}
+
+.pixel-letter {
+  display: grid;
+  grid-template-columns: repeat(5, 7px);
+  grid-template-rows: repeat(7, 7px);
+  gap: 2px;
+}
+
+.pixel-cell {
+  width: 7px;
+  height: 7px;
+}
+
+.pixel-cell.on {
+  background: #f4f6f8;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .75),
+    0 0 4px rgba(244, 246, 248, .3);
 }
 
 .brand-panel p,

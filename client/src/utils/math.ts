@@ -49,12 +49,6 @@ export function sumWorkoutBurn(workouts: Workout[]) {
   return workouts.reduce((sum, workout) => sum + normalizeNumber(workout.estimatedCalories), 0);
 }
 
-export function latestMetric(records: BodyRecord[], type: BodyMetricType, date?: string) {
-  return [...records]
-    .filter((record) => record.type === type && (!date || record.date <= date))
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-}
-
 export function makeBodyChartData(records: BodyRecord[]) {
   const byDate = new Map<string, { date: string; weight?: number; chest?: number; waist?: number; bodyFat?: number }>();
 
