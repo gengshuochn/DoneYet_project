@@ -1,9 +1,9 @@
 import { Ban, CheckCircle2, ChevronLeft, ChevronRight, CircleDotDashed, Plus, RotateCcw, Save, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { BodyMetricType, BodyRecord, Meal, Workout } from '../types/models';
 import { addMonths, getMonthDays, monthKey, nowISO, todayISO } from '../utils/date';
-import { bodyMetricLabels, bodyMetricUnits, makeBodyChartData, makeCalendarDay, normalizeNumber } from '../utils/math';
+import { bodyMetricLabels, bodyMetricUnits, makeCalendarDay, normalizeNumber } from '../utils/math';
 
 type EditorState = {
   id?: string;
@@ -12,19 +12,19 @@ type EditorState = {
   value: string;
 };
 
-type ChartDotPayload = {
-  date?: string;
-  [key: string]: unknown;
+type ChartPoint = {
+  id: string;
+  date: string;
+  value: number;
 };
 
-type ChartDotProps = {
-  cx?: number;
-  cy?: number;
-  stroke?: string;
-  payload?: ChartDotPayload;
+type DateDraft = {
+  yy: string;
+  month: string;
+  day: string;
 };
 
-const metricOptions: BodyMetricType[] = ['weight', 'chest', 'waist', 'bodyFat'];
+const metricOptions: BodyMetricType[] = ['weight', 'bodyFat', 'waist', 'chest'];
 
 function metricColor(type: BodyMetricType) {
   return {
@@ -35,10 +35,130 @@ function metricColor(type: BodyMetricType) {
   }[type];
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, '0');
+}
+
 function makeMonthDate(year: number, month: number) {
-  const safeYear = Number.isFinite(year) ? Math.max(1900, Math.min(2100, Math.trunc(year))) : new Date().getFullYear();
-  const safeMonth = Number.isFinite(month) ? Math.max(1, Math.min(12, Math.trunc(month))) : 1;
+  const safeYear = Number.isFinite(year) ? clamp(Math.trunc(year), 1900, 2100) : new Date().getFullYear();
+  const safeMonth = Number.isFinite(month) ? clamp(Math.trunc(month), 1, 12) : 1;
   return new Date(safeYear, safeMonth - 1, 1).toISOString().slice(0, 10);
+}
+
+function dateToDraft(dateISO: string): DateDraft {
+  const [year, month, day] = dateISO.split('-').map(Number);
+  return {
+    yy: pad2(year % 100),
+    month: pad2(month),
+    day: pad2(day)
+  };
+}
+
+function draftToDate(draft: DateDraft) {
+  const yy = clamp(Math.trunc(Number(draft.yy)), 0, 99);
+  const month = clamp(Math.trunc(Number(draft.month)), 1, 12);
+  const lastDay = new Date(2000 + yy, month, 0).getDate();
+  const day = clamp(Math.trunc(Number(draft.day)), 1, lastDay);
+  return `${2000 + yy}-${pad2(month)}-${pad2(day)}`;
+}
+
+function shiftDays(dateISO: string, days: number) {
+  const date = new Date(`${dateISO}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function axisDomain(points: ChartPoint[]): [number, number] {
+  if (points.length === 0) return [0, 10];
+
+  const values = points.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min;
+  const padding = span === 0 ? Math.max(2, Math.ceil(Math.abs(max || 1) * 0.08)) : Math.max(1, Math.ceil(span * 0.2));
+
+  return [Math.floor(min - padding), Math.ceil(max + padding)];
+}
+
+function DateRangePicker({
+  label,
+  value,
+  onCommit
+}: {
+  label: string;
+  value: string;
+  onCommit: (nextDate: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<DateDraft>(() => dateToDraft(value));
+
+  const commit = () => {
+    const nextDate = draftToDate(draft);
+    onCommit(nextDate);
+    setDraft(dateToDraft(nextDate));
+    setOpen(false);
+  };
+
+  return (
+    <div
+      className="range-date-control"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) commit();
+      }}
+    >
+      <span>{label}</span>
+      <button
+        type="button"
+        className="date-chip"
+        onClick={() => {
+          setDraft(dateToDraft(value));
+          setOpen(true);
+        }}
+      >
+        {value.slice(2).replace(/-/g, '/')}
+      </button>
+      {open && (
+        <div className="date-popover">
+          <span>20</span>
+          <input
+            autoFocus
+            aria-label={`${label}年份后两位`}
+            type="number"
+            value={draft.yy}
+            onChange={(event) => setDraft({ ...draft, yy: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+          />
+          <span>年</span>
+          <input
+            aria-label={`${label}月份`}
+            type="number"
+            value={draft.month}
+            onChange={(event) => setDraft({ ...draft, month: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+          />
+          <span>月</span>
+          <input
+            aria-label={`${label}日期`}
+            type="number"
+            value={draft.day}
+            onChange={(event) => setDraft({ ...draft, day: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+          />
+          <span>日</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function DataModule({
@@ -54,51 +174,41 @@ export function DataModule({
   workouts: Workout[];
   bmr: number;
 }) {
+  const today = todayISO();
   const [editor, setEditor] = useState<EditorState | null>(null);
-  const [calendarDate, setCalendarDate] = useState(todayISO());
+  const [selectedMetric, setSelectedMetric] = useState<BodyMetricType>('weight');
+  const [rangeStart, setRangeStart] = useState(() => shiftDays(today, -180));
+  const [rangeEnd, setRangeEnd] = useState(today);
+  const [calendarDate, setCalendarDate] = useState(today);
+  const [calendarEditor, setCalendarEditor] = useState<'year' | 'month' | null>(null);
   const { days, firstWeekday, year, month } = getMonthDays(calendarDate);
   const [yearDraft, setYearDraft] = useState(String(year));
   const [monthDraft, setMonthDraft] = useState(String(month));
-  const chartData = useMemo(() => makeBodyChartData(records), [records]);
 
-  useEffect(() => {
-    setYearDraft(String(year));
-    setMonthDraft(String(month));
-  }, [year, month]);
+  const chartData = useMemo<ChartPoint[]>(() => {
+    return records
+      .filter((record) => record.type === selectedMetric && record.date >= rangeStart && record.date <= rangeEnd)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((record) => ({ id: record.id, date: record.date, value: record.value }));
+  }, [records, selectedMetric, rangeStart, rangeEnd]);
+
+  const yDomain = useMemo(() => axisDomain(chartData), [chartData]);
 
   const openCreateEditor = () => {
-    setEditor({ date: todayISO(), type: 'weight', value: '' });
+    setEditor({ date: todayISO(), type: selectedMetric, value: '' });
   };
 
-  const openPointEditor = (type: BodyMetricType, payload: ChartDotPayload) => {
-    if (!payload.date || typeof payload[type] !== 'number') return;
-    const existing = records.find((record) => record.date === payload.date && record.type === type);
+  const openPointEditor = (payload?: Partial<ChartPoint>) => {
+    if (!payload?.id) return;
+    const existing = records.find((record) => record.id === payload.id);
+    if (!existing) return;
+
     setEditor({
-      id: existing?.id,
-      date: payload.date,
-      type,
-      value: String(payload[type])
+      id: existing.id,
+      date: existing.date,
+      type: existing.type,
+      value: String(existing.value)
     });
-  };
-
-  const renderMetricDot = (type: BodyMetricType) => (props: unknown) => {
-    const { cx, cy, stroke, payload } = props as ChartDotProps;
-    if (typeof cx !== 'number' || typeof cy !== 'number') return null;
-
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={4}
-        fill="#15181d"
-        stroke={stroke ?? metricColor(type)}
-        strokeWidth={2}
-        className="chart-click-dot"
-        onClick={() => {
-          if (payload) openPointEditor(type, payload);
-        }}
-      />
-    );
   };
 
   const saveEditor = () => {
@@ -133,11 +243,35 @@ export function DataModule({
       }
     }
 
+    setSelectedMetric(editor.type);
     setEditor(null);
   };
 
   const commitCalendarDate = () => {
-    setCalendarDate(makeMonthDate(Number(yearDraft), Number(monthDraft)));
+    const nextDate = makeMonthDate(Number(yearDraft), Number(monthDraft));
+    const next = getMonthDays(nextDate);
+    setCalendarDate(nextDate);
+    setYearDraft(String(next.year));
+    setMonthDraft(String(next.month));
+    setCalendarEditor(null);
+  };
+
+  const commitRangeStart = (nextDate: string) => {
+    if (nextDate > rangeEnd) {
+      setRangeStart(nextDate);
+      setRangeEnd(nextDate);
+    } else {
+      setRangeStart(nextDate);
+    }
+  };
+
+  const commitRangeEnd = (nextDate: string) => {
+    if (nextDate < rangeStart) {
+      setRangeStart(nextDate);
+      setRangeEnd(nextDate);
+    } else {
+      setRangeEnd(nextDate);
+    }
   };
 
   return (
@@ -207,32 +341,64 @@ export function DataModule({
       )}
 
       <div className="chart-card body-chart-card">
-        <h3>身体指标趋势</h3>
+        <div className="chart-toolbar">
+          <div>
+            <h3>{bodyMetricLabels[selectedMetric]}趋势</h3>
+            <p>{bodyMetricLabels[selectedMetric]} · {bodyMetricUnits[selectedMetric]}</p>
+          </div>
+          <div className="metric-tabs">
+            {metricOptions.map((type) => (
+              <button
+                type="button"
+                key={type}
+                className={selectedMetric === type ? 'active' : ''}
+                onClick={() => setSelectedMetric(type)}
+              >
+                {bodyMetricLabels[type]}
+              </button>
+            ))}
+          </div>
+          <div className="range-controls">
+            <DateRangePicker label="起始" value={rangeStart} onCommit={commitRangeStart} />
+            <DateRangePicker label="终止" value={rangeEnd} onCommit={commitRangeEnd} />
+          </div>
+        </div>
         <ResponsiveContainer width="100%" height={420}>
-          <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <LineChart key={`${selectedMetric}-${rangeStart}-${rangeEnd}-${chartData.length}`} data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
             <XAxis dataKey="date" stroke="rgba(255,255,255,.45)" />
-            <YAxis stroke="rgba(255,255,255,.45)" />
+            <YAxis domain={yDomain} allowDataOverflow={false} stroke="rgba(255,255,255,.45)" />
             <Tooltip contentStyle={{ background: '#11151c', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8 }} />
-            {metricOptions.map((type) => (
-              <Line
-                key={type}
-                type="monotone"
-                dataKey={type}
-                name={bodyMetricLabels[type]}
-                stroke={metricColor(type)}
-                strokeWidth={2}
-                connectNulls
-                dot={renderMetricDot(type)}
-                activeDot={{
-                  r: 7,
-                  onClick: (props: unknown) => {
-                    const payload = (props as { payload?: ChartDotPayload }).payload;
-                    if (payload) openPointEditor(type, payload);
-                  }
-                }}
-              />
-            ))}
+            <Line
+              type="monotone"
+              dataKey="value"
+              name={bodyMetricLabels[selectedMetric]}
+              stroke={metricColor(selectedMetric)}
+              strokeWidth={2}
+              dot={(props: unknown) => {
+                const { cx, cy, stroke, payload } = props as { cx?: number; cy?: number; stroke?: string; payload?: ChartPoint };
+                if (typeof cx !== 'number' || typeof cy !== 'number') return null;
+                return (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={4}
+                    fill="#15181d"
+                    stroke={stroke ?? metricColor(selectedMetric)}
+                    strokeWidth={2}
+                    className="chart-click-dot"
+                    onClick={() => openPointEditor(payload)}
+                  />
+                );
+              }}
+              activeDot={{
+                r: 7,
+                onClick: (props: unknown) => {
+                  const payload = (props as { payload?: ChartPoint }).payload;
+                  openPointEditor(payload);
+                }
+              }}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -241,31 +407,51 @@ export function DataModule({
         <div className="calendar-title">
           <div className="calendar-date-editor">
             <span>完成情况</span>
-            <input
-              aria-label="日历年份"
-              className="calendar-inline-input year"
-              type="number"
-              value={yearDraft}
-              onChange={(event) => setYearDraft(event.target.value)}
-              onBlur={commitCalendarDate}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
+            <div
+              className="calendar-edit-wrap"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) commitCalendarDate();
               }}
-            />
+            >
+              <button type="button" className="calendar-value-card" onClick={() => setCalendarEditor('year')}>
+                {year}
+              </button>
+              {calendarEditor === 'year' && (
+                <input
+                  autoFocus
+                  className="calendar-popup-input"
+                  type="text"
+                  value={yearDraft}
+                  onChange={(event) => setYearDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                  }}
+                />
+              )}
+            </div>
             <span>年</span>
-            <input
-              aria-label="日历月份"
-              className="calendar-inline-input month"
-              type="number"
-              min="1"
-              max="12"
-              value={monthDraft}
-              onChange={(event) => setMonthDraft(event.target.value)}
-              onBlur={commitCalendarDate}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
+            <div
+              className="calendar-edit-wrap"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) commitCalendarDate();
               }}
-            />
+            >
+              <button type="button" className="calendar-value-card" onClick={() => setCalendarEditor('month')}>
+                {month}
+              </button>
+              {calendarEditor === 'month' && (
+                <input
+                  autoFocus
+                  className="calendar-popup-input month"
+                  type="text"
+                  value={monthDraft}
+                  onChange={(event) => setMonthDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                  }}
+                />
+              )}
+            </div>
             <span>月</span>
           </div>
           <div className="calendar-actions">
