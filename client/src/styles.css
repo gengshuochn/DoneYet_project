@@ -55,7 +55,7 @@ p {
 
 .topbar {
   display: grid;
-  grid-template-columns: 430px 1fr;
+  grid-template-columns: 560px 1fr;
   gap: 18px;
   align-items: stretch;
   margin-bottom: 14px;
@@ -83,28 +83,31 @@ p {
 .pixel-word {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  gap: 8px;
   width: max-content;
-  filter: drop-shadow(0 0 10px rgba(237, 239, 242, .16));
+  filter:
+    drop-shadow(0 0 10px rgba(237, 239, 242, .18))
+    drop-shadow(0 0 20px rgba(77, 163, 255, .08));
 }
 
 .pixel-letter {
   display: grid;
-  grid-template-columns: repeat(10, 4px);
-  grid-template-rows: repeat(14, 4px);
+  grid-template-columns: repeat(10, 6px);
+  grid-template-rows: repeat(7, 6px);
   gap: 1px;
 }
 
 .pixel-cell {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 .pixel-cell.on {
-  background: #f4f6f8;
+  background: #f8fafc;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, .75),
-    0 0 4px rgba(244, 246, 248, .3);
+    inset 0 0 0 1px rgba(255, 255, 255, .9),
+    0 0 5px rgba(248, 250, 252, .36),
+    0 0 12px rgba(77, 163, 255, .1);
 }
 
 .brand-panel p,
@@ -406,6 +409,34 @@ label {
   margin-bottom: 12px;
 }
 
+.calendar-date-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #edeff2;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.calendar-inline-input {
+  width: auto;
+  height: 36px;
+  padding: 6px 9px;
+  color: #edeff2;
+  background: #1e2229;
+  border-color: #2a2f38;
+  text-align: center;
+  font-weight: 800;
+}
+
+.calendar-inline-input.year {
+  width: 74px;
+}
+
+.calendar-inline-input.month {
+  width: 48px;
+}
+
 .calendar-actions {
   display: flex;
   gap: 6px;
@@ -467,6 +498,10 @@ label {
 
 .calendar-legend {
   margin-top: 12px;
+}
+
+.chart-click-dot {
+  cursor: pointer;
 }
 
 .metric-editor-backdrop {

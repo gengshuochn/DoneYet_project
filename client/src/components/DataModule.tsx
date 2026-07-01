@@ -1,5 +1,5 @@
 import { Ban, CheckCircle2, ChevronLeft, ChevronRight, CircleDotDashed, Plus, RotateCcw, Save, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { BodyMetricType, BodyRecord, Meal, Workout } from '../types/models';
 import { addMonths, getMonthDays, monthKey, nowISO, todayISO } from '../utils/date';
@@ -12,6 +12,18 @@ type EditorState = {
   value: string;
 };
 
+type ChartDotPayload = {
+  date?: string;
+  [key: string]: unknown;
+};
+
+type ChartDotProps = {
+  cx?: number;
+  cy?: number;
+  stroke?: string;
+  payload?: ChartDotPayload;
+};
+
 const metricOptions: BodyMetricType[] = ['weight', 'chest', 'waist', 'bodyFat'];
 
 function metricColor(type: BodyMetricType) {
@@ -21,6 +33,12 @@ function metricColor(type: BodyMetricType) {
     waist: '#4da3ff',
     bodyFat: '#ffb86b'
   }[type];
+}
+
+function makeMonthDate(year: number, month: number) {
+  const safeYear = Number.isFinite(year) ? Math.max(1900, Math.min(2100, Math.trunc(year))) : new Date().getFullYear();
+  const safeMonth = Number.isFinite(month) ? Math.max(1, Math.min(12, Math.trunc(month))) : 1;
+  return new Date(safeYear, safeMonth - 1, 1).toISOString().slice(0, 10);
 }
 
 export function DataModule({
@@ -38,14 +56,21 @@ export function DataModule({
 }) {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [calendarDate, setCalendarDate] = useState(todayISO());
-  const chartData = useMemo(() => makeBodyChartData(records), [records]);
   const { days, firstWeekday, year, month } = getMonthDays(calendarDate);
+  const [yearDraft, setYearDraft] = useState(String(year));
+  const [monthDraft, setMonthDraft] = useState(String(month));
+  const chartData = useMemo(() => makeBodyChartData(records), [records]);
+
+  useEffect(() => {
+    setYearDraft(String(year));
+    setMonthDraft(String(month));
+  }, [year, month]);
 
   const openCreateEditor = () => {
     setEditor({ date: todayISO(), type: 'weight', value: '' });
   };
 
-  const openPointEditor = (type: BodyMetricType, payload: { date?: string; [key: string]: unknown }) => {
+  const openPointEditor = (type: BodyMetricType, payload: ChartDotPayload) => {
     if (!payload.date || typeof payload[type] !== 'number') return;
     const existing = records.find((record) => record.date === payload.date && record.type === type);
     setEditor({
@@ -54,6 +79,26 @@ export function DataModule({
       type,
       value: String(payload[type])
     });
+  };
+
+  const renderMetricDot = (type: BodyMetricType) => (props: unknown) => {
+    const { cx, cy, stroke, payload } = props as ChartDotProps;
+    if (typeof cx !== 'number' || typeof cy !== 'number') return null;
+
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={4}
+        fill="#15181d"
+        stroke={stroke ?? metricColor(type)}
+        strokeWidth={2}
+        className="chart-click-dot"
+        onClick={() => {
+          if (payload) openPointEditor(type, payload);
+        }}
+      />
+    );
   };
 
   const saveEditor = () => {
@@ -89,6 +134,10 @@ export function DataModule({
     }
 
     setEditor(null);
+  };
+
+  const commitCalendarDate = () => {
+    setCalendarDate(makeMonthDate(Number(yearDraft), Number(monthDraft)));
   };
 
   return (
@@ -174,11 +223,11 @@ export function DataModule({
                 stroke={metricColor(type)}
                 strokeWidth={2}
                 connectNulls
-                dot={{ r: 3 }}
+                dot={renderMetricDot(type)}
                 activeDot={{
-                  r: 6,
+                  r: 7,
                   onClick: (props: unknown) => {
-                    const payload = (props as { payload?: { date?: string; [key: string]: unknown } }).payload;
+                    const payload = (props as { payload?: ChartDotPayload }).payload;
                     if (payload) openPointEditor(type, payload);
                   }
                 }}
@@ -190,7 +239,35 @@ export function DataModule({
 
       <div className="calendar-card">
         <div className="calendar-title">
-          <h3>{year} 年 {month} 月完成日历</h3>
+          <div className="calendar-date-editor">
+            <span>完成情况</span>
+            <input
+              aria-label="日历年份"
+              className="calendar-inline-input year"
+              type="number"
+              value={yearDraft}
+              onChange={(event) => setYearDraft(event.target.value)}
+              onBlur={commitCalendarDate}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+            />
+            <span>年</span>
+            <input
+              aria-label="日历月份"
+              className="calendar-inline-input month"
+              type="number"
+              min="1"
+              max="12"
+              value={monthDraft}
+              onChange={(event) => setMonthDraft(event.target.value)}
+              onBlur={commitCalendarDate}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+            />
+            <span>月</span>
+          </div>
           <div className="calendar-actions">
             <button type="button" className="icon-button" onClick={() => setCalendarDate(addMonths(calendarDate, -1))} aria-label="上个月">
               <ChevronLeft size={18} />
