@@ -18,6 +18,11 @@ type ChartPoint = {
   value: number;
 };
 
+type TooltipPayload = ReadonlyArray<{
+  payload?: ChartPoint;
+  value?: number;
+}>;
+
 type DateDraft = {
   yy: string;
   month: string;
@@ -59,7 +64,7 @@ function dateToDraft(dateISO: string): DateDraft {
 }
 
 function draftToDate(draft: DateDraft) {
-  const yy = clamp(Math.trunc(Number(draft.yy)), 0, 99);
+  const yy = clamp(Math.trunc(Number(draft.yy)), 1, 99);
   const month = clamp(Math.trunc(Number(draft.month)), 1, 12);
   const lastDay = new Date(2000 + yy, month, 0).getDate();
   const day = clamp(Math.trunc(Number(draft.day)), 1, lastDay);
@@ -72,16 +77,61 @@ function shiftDays(dateISO: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-function axisDomain(points: ChartPoint[]): [number, number] {
-  if (points.length === 0) return [0, 10];
+function minRecordDate(records: BodyRecord[]) {
+  return records.length > 0
+    ? records.map((record) => record.date).sort((a, b) => a.localeCompare(b))[0]
+    : undefined;
+}
 
-  const values = points.map((point) => point.value);
+function maxRecordDate(records: BodyRecord[]) {
+  return records.length > 0
+    ? records.map((record) => record.date).sort((a, b) => b.localeCompare(a))[0]
+    : undefined;
+}
+
+function formatShortDate(dateISO: string) {
+  return dateISO.slice(2).replace(/-/g, '/');
+}
+
+function axisDomain(records: BodyRecord[], type: BodyMetricType): [number, number] {
+  const values = records
+    .filter((record) => record.type === type && record.value > 0)
+    .map((record) => record.value);
+
+  if (values.length === 0) return [1, 10];
+
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const span = max - min;
-  const padding = span === 0 ? Math.max(2, Math.ceil(Math.abs(max || 1) * 0.08)) : Math.max(1, Math.ceil(span * 0.2));
 
-  return [Math.floor(min - padding), Math.ceil(max + padding)];
+  if (min === max) {
+    return [Math.max(1, Math.floor(min - 1)), Math.ceil(max + 1)];
+  }
+
+  return [Math.max(1, Math.floor(min)), Math.ceil(max)];
+}
+
+function PointTooltip({
+  active,
+  payload,
+  metric,
+  onOpen
+}: {
+  active?: boolean;
+  payload?: TooltipPayload;
+  metric: BodyMetricType;
+  onOpen: (point?: ChartPoint) => void;
+}) {
+  const point = payload?.[0]?.payload;
+
+  if (!active || !point) return null;
+
+  return (
+    <button type="button" className="point-tooltip-card" onClick={() => onOpen(point)}>
+      <span>{formatShortDate(point.date)}</span>
+      <strong>{point.value} {bodyMetricUnits[metric]}</strong>
+      <em>点击修改</em>
+    </button>
+  );
 }
 
 function DateRangePicker({
@@ -119,15 +169,16 @@ function DateRangePicker({
           setOpen(true);
         }}
       >
-        {value.slice(2).replace(/-/g, '/')}
+        {formatShortDate(value)}
       </button>
       {open && (
         <div className="date-popover">
-          <span>20</span>
           <input
             autoFocus
-            aria-label={`${label}年份后两位`}
+            aria-label={`${label}年份`}
             type="number"
+            min="1"
+            max="99"
             value={draft.yy}
             onChange={(event) => setDraft({ ...draft, yy: event.target.value })}
             onKeyDown={(event) => {
@@ -138,6 +189,8 @@ function DateRangePicker({
           <input
             aria-label={`${label}月份`}
             type="number"
+            min="1"
+            max="12"
             value={draft.month}
             onChange={(event) => setDraft({ ...draft, month: event.target.value })}
             onKeyDown={(event) => {
@@ -148,6 +201,7 @@ function DateRangePicker({
           <input
             aria-label={`${label}日期`}
             type="number"
+            min="1"
             value={draft.day}
             onChange={(event) => setDraft({ ...draft, day: event.target.value })}
             onKeyDown={(event) => {
@@ -177,8 +231,8 @@ export function DataModule({
   const today = todayISO();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<BodyMetricType>('weight');
-  const [rangeStart, setRangeStart] = useState(() => shiftDays(today, -180));
-  const [rangeEnd, setRangeEnd] = useState(today);
+  const [rangeStart, setRangeStart] = useState(() => minRecordDate(records) ?? shiftDays(today, -180));
+  const [rangeEnd, setRangeEnd] = useState(() => maxRecordDate(records) ?? today);
   const [calendarDate, setCalendarDate] = useState(today);
   const [calendarEditor, setCalendarEditor] = useState<'year' | 'month' | null>(null);
   const { days, firstWeekday, year, month } = getMonthDays(calendarDate);
@@ -192,7 +246,7 @@ export function DataModule({
       .map((record) => ({ id: record.id, date: record.date, value: record.value }));
   }, [records, selectedMetric, rangeStart, rangeEnd]);
 
-  const yDomain = useMemo(() => axisDomain(chartData), [chartData]);
+  const yDomain = useMemo(() => axisDomain(records, selectedMetric), [records, selectedMetric]);
 
   const openCreateEditor = () => {
     setEditor({ date: todayISO(), type: selectedMetric, value: '' });
@@ -243,17 +297,35 @@ export function DataModule({
       }
     }
 
+    if (editor.date < rangeStart) setRangeStart(editor.date);
+    if (editor.date > rangeEnd) setRangeEnd(editor.date);
     setSelectedMetric(editor.type);
     setEditor(null);
   };
 
   const commitCalendarDate = () => {
-    const nextDate = makeMonthDate(Number(yearDraft), Number(monthDraft));
+    const parsedYear = Number(yearDraft);
+    const parsedMonth = Number(monthDraft);
+
+    if (!Number.isFinite(parsedYear) || !Number.isFinite(parsedMonth) || parsedYear < 1 || parsedMonth < 1 || parsedMonth > 12) {
+      setYearDraft(String(year));
+      setMonthDraft(String(month));
+      setCalendarEditor(null);
+      return;
+    }
+
+    const nextDate = makeMonthDate(parsedYear, parsedMonth);
     const next = getMonthDays(nextDate);
     setCalendarDate(nextDate);
     setYearDraft(String(next.year));
     setMonthDraft(String(next.month));
     setCalendarEditor(null);
+  };
+
+  const openCalendarEditor = (type: 'year' | 'month') => {
+    setYearDraft(String(year));
+    setMonthDraft(String(month));
+    setCalendarEditor(type);
   };
 
   const commitRangeStart = (nextDate: string) => {
@@ -366,9 +438,27 @@ export function DataModule({
         <ResponsiveContainer width="100%" height={420}>
           <LineChart key={`${selectedMetric}-${rangeStart}-${rangeEnd}-${chartData.length}`} data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
-            <XAxis dataKey="date" stroke="rgba(255,255,255,.45)" />
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatShortDate}
+              angle={-35}
+              textAnchor="end"
+              height={68}
+              stroke="rgba(255,255,255,.45)"
+            />
             <YAxis domain={yDomain} allowDataOverflow={false} stroke="rgba(255,255,255,.45)" />
-            <Tooltip contentStyle={{ background: '#11151c', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8 }} />
+            <Tooltip
+              cursor={{ stroke: 'rgba(124, 140, 255, .24)', strokeWidth: 1 }}
+              offset={18}
+              content={(props) => (
+                <PointTooltip
+                  active={props.active}
+                  payload={props.payload as TooltipPayload | undefined}
+                  metric={selectedMetric}
+                  onOpen={openPointEditor}
+                />
+              )}
+            />
             <Line
               type="monotone"
               dataKey="value"
@@ -387,17 +477,10 @@ export function DataModule({
                     stroke={stroke ?? metricColor(selectedMetric)}
                     strokeWidth={2}
                     className="chart-click-dot"
-                    onClick={() => openPointEditor(payload)}
                   />
                 );
               }}
-              activeDot={{
-                r: 7,
-                onClick: (props: unknown) => {
-                  const payload = (props as { payload?: ChartPoint }).payload;
-                  openPointEditor(payload);
-                }
-              }}
+              activeDot={{ r: 7 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -413,14 +496,16 @@ export function DataModule({
                 if (!event.currentTarget.contains(event.relatedTarget)) commitCalendarDate();
               }}
             >
-              <button type="button" className="calendar-value-card" onClick={() => setCalendarEditor('year')}>
+              <button type="button" className="calendar-value-card" onClick={() => openCalendarEditor('year')}>
                 {year}
               </button>
               {calendarEditor === 'year' && (
                 <input
                   autoFocus
                   className="calendar-popup-input"
-                  type="text"
+                  type="number"
+                  min="1"
+                  max="9999"
                   value={yearDraft}
                   onChange={(event) => setYearDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -436,14 +521,16 @@ export function DataModule({
                 if (!event.currentTarget.contains(event.relatedTarget)) commitCalendarDate();
               }}
             >
-              <button type="button" className="calendar-value-card" onClick={() => setCalendarEditor('month')}>
+              <button type="button" className="calendar-value-card" onClick={() => openCalendarEditor('month')}>
                 {month}
               </button>
               {calendarEditor === 'month' && (
                 <input
                   autoFocus
                   className="calendar-popup-input month"
-                  type="text"
+                  type="number"
+                  min="1"
+                  max="12"
                   value={monthDraft}
                   onChange={(event) => setMonthDraft(event.target.value)}
                   onKeyDown={(event) => {

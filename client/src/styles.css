@@ -489,6 +489,34 @@ label {
   font-weight: 800;
 }
 
+.recharts-tooltip-wrapper {
+  pointer-events: auto !important;
+}
+
+.point-tooltip-card {
+  min-width: 116px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid #2a2f38;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #15181d;
+  color: #edeff2;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .38);
+  text-align: left;
+}
+
+.point-tooltip-card span,
+.point-tooltip-card em {
+  color: #8b929e;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.point-tooltip-card strong {
+  font-size: 18px;
+}
+
 .calendar-title {
   display: flex;
   align-items: center;
