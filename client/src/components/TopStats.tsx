@@ -21,21 +21,34 @@ const pixelLetters: Record<string, string[]> = {
   t: ['00100', '00100', '11111', '00100', '00100', '00101', '00010']
 };
 
+function thickenPattern(pattern: string[]) {
+  return pattern.flatMap((row) => {
+    const thickRow = row
+      .split('')
+      .map((cell) => cell.repeat(2))
+      .join('');
+    return [thickRow, thickRow];
+  });
+}
+
 function PixelLogo() {
   return (
     <div className="pixel-word" aria-label="DoneYet" role="img">
-      {'DoneYet'.split('').map((letter, letterIndex) => (
-        <div className="pixel-letter" key={`${letter}-${letterIndex}`}>
-          {pixelLetters[letter].flatMap((row, rowIndex) =>
+      {'DoneYet'.split('').map((letter, letterIndex) => {
+        const pattern = thickenPattern(pixelLetters[letter]);
+        return (
+          <div className="pixel-letter" key={`${letter}-${letterIndex}`}>
+            {pattern.flatMap((row, rowIndex) =>
             row.split('').map((cell, colIndex) => (
               <span
                 className={cell === '1' ? 'pixel-cell on' : 'pixel-cell'}
                 key={`${rowIndex}-${colIndex}`}
               />
             ))
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

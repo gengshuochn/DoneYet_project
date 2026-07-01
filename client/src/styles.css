@@ -55,7 +55,7 @@ p {
 
 .topbar {
   display: grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: 430px 1fr;
   gap: 18px;
   align-items: stretch;
   margin-bottom: 14px;
@@ -83,21 +83,21 @@ p {
 .pixel-word {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 9px;
   width: max-content;
   filter: drop-shadow(0 0 10px rgba(237, 239, 242, .16));
 }
 
 .pixel-letter {
   display: grid;
-  grid-template-columns: repeat(5, 7px);
-  grid-template-rows: repeat(7, 7px);
-  gap: 2px;
+  grid-template-columns: repeat(10, 4px);
+  grid-template-rows: repeat(14, 4px);
+  gap: 1px;
 }
 
 .pixel-cell {
-  width: 7px;
-  height: 7px;
+  width: 4px;
+  height: 4px;
 }
 
 .pixel-cell.on {
