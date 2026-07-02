@@ -52,7 +52,7 @@ function pad2(value: number) {
 function makeMonthDate(year: number, month: number) {
   const safeYear = Number.isFinite(year) ? clamp(Math.trunc(year), 1900, 2100) : new Date().getFullYear();
   const safeMonth = Number.isFinite(month) ? clamp(Math.trunc(month), 1, 12) : 1;
-  return new Date(safeYear, safeMonth - 1, 1).toISOString().slice(0, 10);
+  return `${safeYear}-${pad2(safeMonth)}-01`;
 }
 
 function dateToDraft(dateISO: string): DateDraft {
@@ -290,6 +290,11 @@ export function DataModule({
     if (!Number.isFinite(parsedYear) || !Number.isFinite(parsedMonth) || parsedYear < 1 || parsedMonth < 1 || parsedMonth > 12) {
       setYearDraft(String(year));
       setMonthDraft(String(month));
+      setCalendarEditor(null);
+      return;
+    }
+
+    if (parsedYear === year && parsedMonth === month) {
       setCalendarEditor(null);
       return;
     }
