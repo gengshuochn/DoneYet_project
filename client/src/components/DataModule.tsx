@@ -18,15 +18,16 @@ type ChartPoint = {
   value: number;
 };
 
-type TooltipPayload = ReadonlyArray<{
-  payload?: ChartPoint;
-  value?: number;
-}>;
-
 type DateDraft = {
   yy: string;
   month: string;
   day: string;
+};
+
+type HoverPoint = {
+  point: ChartPoint;
+  x: number;
+  y: number;
 };
 
 const metricOptions: BodyMetricType[] = ['weight', 'bodyFat', 'waist', 'chest'];
@@ -108,30 +109,6 @@ function axisDomain(records: BodyRecord[], type: BodyMetricType): [number, numbe
   }
 
   return [Math.max(1, Math.floor(min)), Math.ceil(max)];
-}
-
-function PointTooltip({
-  active,
-  payload,
-  metric,
-  onOpen
-}: {
-  active?: boolean;
-  payload?: TooltipPayload;
-  metric: BodyMetricType;
-  onOpen: (point?: ChartPoint) => void;
-}) {
-  const point = payload?.[0]?.payload;
-
-  if (!active || !point) return null;
-
-  return (
-    <button type="button" className="point-tooltip-card" onClick={() => onOpen(point)}>
-      <span>{formatShortDate(point.date)}</span>
-      <strong>{point.value} {bodyMetricUnits[metric]}</strong>
-      <em>点击修改</em>
-    </button>
-  );
 }
 
 function DateRangePicker({
@@ -231,6 +208,7 @@ export function DataModule({
   const today = todayISO();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<BodyMetricType>('weight');
+  const [hoverPoint, setHoverPoint] = useState<HoverPoint | null>(null);
   const [rangeStart, setRangeStart] = useState(() => minRecordDate(records) ?? shiftDays(today, -180));
   const [rangeEnd, setRangeEnd] = useState(() => maxRecordDate(records) ?? today);
   const [calendarDate, setCalendarDate] = useState(today);
@@ -247,6 +225,7 @@ export function DataModule({
   }, [records, selectedMetric, rangeStart, rangeEnd]);
 
   const yDomain = useMemo(() => axisDomain(records, selectedMetric), [records, selectedMetric]);
+  const lastChartPointId = chartData.length > 0 ? chartData[chartData.length - 1].id : undefined;
 
   const openCreateEditor = () => {
     setEditor({ date: todayISO(), type: selectedMetric, value: '' });
@@ -299,6 +278,7 @@ export function DataModule({
 
     if (editor.date < rangeStart) setRangeStart(editor.date);
     if (editor.date > rangeEnd) setRangeEnd(editor.date);
+    setHoverPoint(null);
     setSelectedMetric(editor.type);
     setEditor(null);
   };
@@ -435,6 +415,7 @@ export function DataModule({
             <DateRangePicker label="终止" value={rangeEnd} onCommit={commitRangeEnd} />
           </div>
         </div>
+        <div className="chart-stage">
         <ResponsiveContainer width="100%" height={420}>
           <LineChart key={`${selectedMetric}-${rangeStart}-${rangeEnd}-${chartData.length}`} data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
@@ -449,15 +430,7 @@ export function DataModule({
             <YAxis domain={yDomain} allowDataOverflow={false} stroke="rgba(255,255,255,.45)" />
             <Tooltip
               cursor={{ stroke: 'rgba(124, 140, 255, .24)', strokeWidth: 1 }}
-              offset={18}
-              content={(props) => (
-                <PointTooltip
-                  active={props.active}
-                  payload={props.payload as TooltipPayload | undefined}
-                  metric={selectedMetric}
-                  onOpen={openPointEditor}
-                />
-              )}
+              content={() => null}
             />
             <Line
               type="monotone"
@@ -477,13 +450,46 @@ export function DataModule({
                     stroke={stroke ?? metricColor(selectedMetric)}
                     strokeWidth={2}
                     className="chart-click-dot"
+                    onMouseEnter={() => {
+                      if (payload) setHoverPoint({ point: payload, x: cx, y: cy });
+                    }}
                   />
                 );
               }}
-              activeDot={{ r: 7 }}
+              activeDot={(props: unknown) => {
+                const { cx, cy, stroke, payload } = props as { cx?: number; cy?: number; stroke?: string; payload?: ChartPoint };
+                if (typeof cx !== 'number' || typeof cy !== 'number') return null;
+                return (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={7}
+                    fill="#15181d"
+                    stroke={stroke ?? metricColor(selectedMetric)}
+                    strokeWidth={2}
+                    className="chart-click-dot"
+                    onMouseEnter={() => {
+                      if (payload) setHoverPoint({ point: payload, x: cx, y: cy });
+                    }}
+                  />
+                );
+              }}
             />
           </LineChart>
         </ResponsiveContainer>
+        {hoverPoint && (
+          <button
+            type="button"
+            className={`point-floating-card ${hoverPoint.point.id === lastChartPointId ? 'left' : 'right'} ${hoverPoint.y > 250 ? 'up' : 'down'}`}
+            style={{ left: hoverPoint.x, top: hoverPoint.y }}
+            onClick={() => openPointEditor(hoverPoint.point)}
+          >
+            <span>{formatShortDate(hoverPoint.point.date)}</span>
+            <strong>{hoverPoint.point.value} {bodyMetricUnits[selectedMetric]}</strong>
+            <em>点击修改</em>
+          </button>
+        )}
+        </div>
       </div>
 
       <div className="calendar-card">

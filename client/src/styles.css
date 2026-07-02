@@ -489,11 +489,13 @@ label {
   font-weight: 800;
 }
 
-.recharts-tooltip-wrapper {
-  pointer-events: auto !important;
+.chart-stage {
+  position: relative;
 }
 
-.point-tooltip-card {
+.point-floating-card {
+  position: absolute;
+  z-index: 8;
   min-width: 116px;
   display: grid;
   gap: 4px;
@@ -506,14 +508,30 @@ label {
   text-align: left;
 }
 
-.point-tooltip-card span,
-.point-tooltip-card em {
+.point-floating-card.right.down {
+  transform: translate(14px, 14px);
+}
+
+.point-floating-card.right.up {
+  transform: translate(14px, calc(-100% - 14px));
+}
+
+.point-floating-card.left.down {
+  transform: translate(calc(-100% - 14px), 14px);
+}
+
+.point-floating-card.left.up {
+  transform: translate(calc(-100% - 14px), calc(-100% - 14px));
+}
+
+.point-floating-card span,
+.point-floating-card em {
   color: #8b929e;
   font-size: 12px;
   font-style: normal;
 }
 
-.point-tooltip-card strong {
+.point-floating-card strong {
   font-size: 18px;
 }
 
