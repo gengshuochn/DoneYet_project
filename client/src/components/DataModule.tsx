@@ -1,9 +1,10 @@
 import { Ban, CheckCircle2, ChevronLeft, ChevronRight, CircleDotDashed, Plus, RotateCcw, Save, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { BodyMetricType, BodyRecord, Meal, Workout } from '../types/models';
-import { addMonths, getMonthDays, monthKey, nowISO, todayISO } from '../utils/date';
-import { bodyMetricLabels, bodyMetricUnits, makeCalendarDay, normalizeNumber } from '../utils/math';
+import { backendApi } from '../api/client';
+import type { BodyMetricType, BodyRecord, CalendarDay } from '../types/models';
+import { addMonths, getMonthDays, monthKey, todayISO } from '../utils/date';
+import { bodyMetricLabels, bodyMetricUnits, normalizeNumber } from '../utils/math';
 
 type EditorState = {
   id?: string;
@@ -194,16 +195,10 @@ function DateRangePicker({
 
 export function DataModule({
   records,
-  setRecords,
-  meals,
-  workouts,
-  bmr
+  setRecords
 }: {
   records: BodyRecord[];
   setRecords: (records: BodyRecord[]) => void;
-  meals: Meal[];
-  workouts: Workout[];
-  bmr: number;
 }) {
   const today = todayISO();
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -216,6 +211,24 @@ export function DataModule({
   const { days, firstWeekday, year, month } = getMonthDays(calendarDate);
   const [yearDraft, setYearDraft] = useState(String(year));
   const [monthDraft, setMonthDraft] = useState(String(month));
+  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCalendar() {
+      const nextDays = await backendApi.getCalendar(year, month);
+      if (!ignore) setCalendarDays(nextDays);
+    }
+
+    loadCalendar().catch(() => {
+      if (!ignore) setCalendarDays([]);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [year, month]);
 
   const chartData = useMemo<ChartPoint[]>(() => {
     return records
@@ -244,42 +257,28 @@ export function DataModule({
     });
   };
 
-  const saveEditor = () => {
+  const saveEditor = async () => {
     if (!editor) return;
     const value = normalizeNumber(editor.value);
-    const timestamp = nowISO();
+    const saved = editor.id
+      ? await backendApi.updateBodyRecord(editor.id, { date: editor.date, type: editor.type, value })
+      : await backendApi.createBodyRecord({ date: editor.date, type: editor.type, value });
 
     if (editor.id) {
-      setRecords(
-        records.map((record) =>
-          record.id === editor.id
-            ? { ...record, date: editor.date, type: editor.type, value, updatedAt: timestamp }
-            : record
-        )
-      );
+      setRecords(records.map((record) => (record.id === saved.id ? saved : record)));
     } else {
-      const existing = records.find((record) => record.date === editor.date && record.type === editor.type);
+      const existing = records.find((record) => record.id === saved.id || (record.date === saved.date && record.type === saved.type));
       if (existing) {
-        setRecords(records.map((record) => (record.id === existing.id ? { ...record, value, updatedAt: timestamp } : record)));
+        setRecords(records.map((record) => (record.id === existing.id ? saved : record)));
       } else {
-        setRecords([
-          ...records,
-          {
-            id: crypto.randomUUID(),
-            date: editor.date,
-            type: editor.type,
-            value,
-            createdAt: timestamp,
-            updatedAt: timestamp
-          }
-        ]);
+        setRecords([...records, saved]);
       }
     }
 
-    if (editor.date < rangeStart) setRangeStart(editor.date);
-    if (editor.date > rangeEnd) setRangeEnd(editor.date);
+    if (saved.date < rangeStart) setRangeStart(saved.date);
+    if (saved.date > rangeEnd) setRangeEnd(saved.date);
     setHoverPoint(null);
-    setSelectedMetric(editor.type);
+    setSelectedMetric(saved.type);
     setEditor(null);
   };
 
@@ -570,7 +569,13 @@ export function DataModule({
         <div className="calendar-grid">
           {Array.from({ length: firstWeekday }).map((_, index) => <div key={`blank-${index}`} />)}
           {days.map((day) => {
-            const status = makeCalendarDay(day, meals, workouts, bmr);
+            const status = calendarDays.find((item) => item.date === day) ?? {
+              date: day,
+              calorieBalance: 0,
+              hasDiet: false,
+              hasWorkout: false,
+              status: 'missed' as const
+            };
             return (
               <div className={`calendar-day ${status.status}`} key={day}>
                 <div className="day-head">

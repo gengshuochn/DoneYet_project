@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { backendApi } from '../api/client';
 import type { Meal, MealItem } from '../types/models';
-import { nowISO } from '../utils/date';
 import { normalizeNumber, sumMealItems } from '../utils/math';
 
 const numberFields: Array<{ key: keyof Pick<MealItem, 'calories' | 'protein' | 'carbs' | 'fat'>; label: string }> = [
@@ -10,63 +10,46 @@ const numberFields: Array<{ key: keyof Pick<MealItem, 'calories' | 'protein' | '
   { key: 'fat', label: '脂肪' }
 ];
 
-function stamp<T extends object>(value: T): T & { updatedAt: string } {
-  return { ...value, updatedAt: nowISO() };
-}
-
 export function DietModule({ meals, setMeals, date }: { meals: Meal[]; setMeals: (meals: Meal[]) => void; date: string }) {
   const dayMeals = meals.filter((meal) => meal.date === date);
 
-  const addMeal = () => {
-    const timestamp = nowISO();
-    setMeals([
-      ...meals,
-      {
-        id: crypto.randomUUID(),
-        date,
-        title: '新饮食条目',
-        items: [],
-        createdAt: timestamp,
-        updatedAt: timestamp
-      }
-    ]);
+  const addMeal = async () => {
+    const meal = await backendApi.createMeal({ date, title: '新增饮食条目' });
+    setMeals([...meals, meal]);
   };
 
-  const updateMeal = (meal: Meal) => setMeals(meals.map((item) => (item.id === meal.id ? stamp(meal) : item)));
-  const removeMeal = (id: string) => {
+  const updateMeal = async (meal: Meal) => {
+    const updated = await backendApi.updateMeal(meal.id, { title: meal.title });
+    setMeals(meals.map((item) => (item.id === updated.id ? { ...updated, items: item.items } : item)));
+  };
+
+  const removeMeal = async (id: string) => {
     if (window.confirm('删除这张饮食卡片？')) {
+      await backendApi.deleteMeal(id);
       setMeals(meals.filter((meal) => meal.id !== id));
     }
   };
 
-  const addFood = (meal: Meal) => {
-    const timestamp = nowISO();
-    updateMeal({
-      ...meal,
-      items: [
-        ...meal.items,
-        {
-          id: crypto.randomUUID(),
-          mealId: meal.id,
-          name: '',
-          amount: '',
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          createdAt: timestamp,
-          updatedAt: timestamp
-        }
-      ]
+  const addFood = async (meal: Meal) => {
+    const food = await backendApi.createMealItem(meal.id, {
+      name: '',
+      amount: '',
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0
     });
+    setMeals(meals.map((item) => (item.id === meal.id ? { ...item, items: [...item.items, food] } : item)));
   };
 
-  const updateFood = (meal: Meal, food: MealItem) => {
-    updateMeal({ ...meal, items: meal.items.map((item) => (item.id === food.id ? stamp(food) : item)) });
+  const updateFood = async (meal: Meal, food: MealItem) => {
+    const updated = await backendApi.updateMealItem(food.id, food);
+    setMeals(meals.map((item) => (item.id === meal.id ? { ...item, items: item.items.map((old) => (old.id === updated.id ? updated : old)) } : item)));
   };
 
-  const removeFood = (meal: Meal, foodId: string) => {
-    updateMeal({ ...meal, items: meal.items.filter((food) => food.id !== foodId) });
+  const removeFood = async (meal: Meal, foodId: string) => {
+    await backendApi.deleteMealItem(foodId);
+    setMeals(meals.map((item) => (item.id === meal.id ? { ...item, items: item.items.filter((food) => food.id !== foodId) } : item)));
   };
 
   return (
@@ -93,7 +76,7 @@ export function DietModule({ meals, setMeals, date }: { meals: Meal[]; setMeals:
                 <input
                   className="title-input"
                   value={meal.title}
-                  onChange={(event) => updateMeal({ ...meal, title: event.target.value || '新饮食条目' })}
+                  onChange={(event) => updateMeal({ ...meal, title: event.target.value || '新增饮食条目' })}
                 />
                 <button type="button" className="icon-button danger" onClick={() => removeMeal(meal.id)} aria-label="删除饮食">
                   <Trash2 size={17} />

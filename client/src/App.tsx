@@ -4,42 +4,62 @@ import { DietModule } from './components/DietModule';
 import { FitnessModule } from './components/FitnessModule';
 import { Tabs } from './components/Tabs';
 import { TopStats } from './components/TopStats';
+import { backendApi } from './api/client';
 import type { BodyRecord, Meal, TabKey, Workout } from './types/models';
-import { nowISO, todayISO } from './utils/date';
+import { todayISO } from './utils/date';
 import { sumMeals, sumWorkoutBurn } from './utils/math';
 import './styles.css';
 
 const today = todayISO();
 const defaultBmr = 1760;
 
-const initialRecords: BodyRecord[] = [
-  { id: crypto.randomUUID(), date: today, type: 'weight', value: 76.2, createdAt: nowISO(), updatedAt: nowISO() },
-  { id: crypto.randomUUID(), date: today, type: 'chest', value: 96, createdAt: nowISO(), updatedAt: nowISO() },
-  { id: crypto.randomUUID(), date: today, type: 'waist', value: 83, createdAt: nowISO(), updatedAt: nowISO() },
-  { id: crypto.randomUUID(), date: today, type: 'bodyFat', value: 18.5, createdAt: nowISO(), updatedAt: nowISO() }
-];
-
-function loadState<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('diet');
   const [selectedDate, setSelectedDate] = useState(today);
-  const [meals, setMeals] = useState<Meal[]>(() => loadState('doneyet.meals', []));
-  const [workouts, setWorkouts] = useState<Workout[]>(() => loadState('doneyet.workouts', []));
-  const [records, setRecords] = useState<BodyRecord[]>(() => loadState('doneyet.records.v2', initialRecords));
-  const [bmr, setBmr] = useState(() => loadState('doneyet.bmr', defaultBmr));
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [records, setRecords] = useState<BodyRecord[]>([]);
+  const [bmr, setBmr] = useState(defaultBmr);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => localStorage.setItem('doneyet.meals', JSON.stringify(meals)), [meals]);
-  useEffect(() => localStorage.setItem('doneyet.workouts', JSON.stringify(workouts)), [workouts]);
-  useEffect(() => localStorage.setItem('doneyet.records.v2', JSON.stringify(records)), [records]);
-  useEffect(() => localStorage.setItem('doneyet.bmr', JSON.stringify(bmr)), [bmr]);
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPageData() {
+      try {
+        setIsLoading(true);
+        const [nextMeals, nextWorkouts, nextRecords, nextBmr] = await Promise.all([
+          backendApi.getMeals(selectedDate),
+          backendApi.getWorkouts(selectedDate),
+          backendApi.getBodyRecords(),
+          backendApi.getBmr()
+        ]);
+
+        if (ignore) return;
+        setMeals(nextMeals);
+        setWorkouts(nextWorkouts);
+        setRecords(nextRecords);
+        setBmr(nextBmr.bmr);
+        setApiError(null);
+      } catch (error) {
+        if (!ignore) setApiError(error instanceof Error ? error.message : 'API request failed');
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+
+    loadPageData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDate]);
+
+  const updateBmr = async (value: number) => {
+    const response = await backendApi.updateBmr(value);
+    setBmr(response.bmr);
+  };
 
   const dayMeals = useMemo(() => meals.filter((meal) => meal.date === selectedDate), [meals, selectedDate]);
   const dayWorkouts = useMemo(() => workouts.filter((workout) => workout.date === selectedDate), [workouts, selectedDate]);
@@ -48,7 +68,12 @@ function App() {
 
   return (
     <main className="app-shell">
-      <TopStats date={selectedDate} bmr={bmr} onBmrChange={setBmr} intake={intake} workoutBurn={workoutBurn} />
+      <TopStats date={selectedDate} bmr={bmr} onBmrChange={updateBmr} intake={intake} workoutBurn={workoutBurn} />
+      {(apiError || isLoading) && (
+        <div className={`api-status ${apiError ? 'error' : ''}`}>
+          {apiError ?? 'Loading API data...'}
+        </div>
+      )}
       <div className="toolbar-row">
         <Tabs active={activeTab} onChange={setActiveTab} />
         {activeTab !== 'data' && (
@@ -60,7 +85,7 @@ function App() {
       </div>
       {activeTab === 'diet' && <DietModule date={selectedDate} meals={meals} setMeals={setMeals} />}
       {activeTab === 'fitness' && <FitnessModule date={selectedDate} workouts={workouts} setWorkouts={setWorkouts} />}
-      {activeTab === 'data' && <DataModule records={records} setRecords={setRecords} meals={meals} workouts={workouts} bmr={bmr} />}
+      {activeTab === 'data' && <DataModule records={records} setRecords={setRecords} />}
     </main>
   );
 }

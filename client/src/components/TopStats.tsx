@@ -7,7 +7,7 @@ import { normalizeNumber } from '../utils/math';
 type Props = {
   date: string;
   bmr: number;
-  onBmrChange: (value: number) => void;
+  onBmrChange: (value: number) => void | Promise<void>;
   intake: NutritionTotals;
   workoutBurn: number;
 };
@@ -74,12 +74,12 @@ function Stat({
   );
 }
 
-function BmrStat({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+function BmrStat({ value, onChange }: { value: number; onChange: (value: number) => void | Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
 
-  const save = () => {
-    onChange(normalizeNumber(draft));
+  const save = async () => {
+    await onChange(normalizeNumber(draft));
     setEditing(false);
   };
 

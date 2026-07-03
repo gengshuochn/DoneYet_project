@@ -1,56 +1,45 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { backendApi } from '../api/client';
 import type { Workout, WorkoutItem } from '../types/models';
-import { nowISO } from '../utils/date';
 import { normalizeNumber } from '../utils/math';
-
-function stamp<T extends object>(value: T): T & { updatedAt: string } {
-  return { ...value, updatedAt: nowISO() };
-}
 
 export function FitnessModule({ workouts, setWorkouts, date }: { workouts: Workout[]; setWorkouts: (items: Workout[]) => void; date: string }) {
   const dayWorkouts = workouts.filter((workout) => workout.date === date);
 
-  const addWorkout = () => {
-    const timestamp = nowISO();
-    setWorkouts([
-      ...workouts,
-      {
-        id: crypto.randomUUID(),
-        date,
-        title: '新训练',
-        durationMinutes: 60,
-        estimatedCalories: 0,
-        items: [],
-        createdAt: timestamp,
-        updatedAt: timestamp
-      }
-    ]);
+  const addWorkout = async () => {
+    const workout = await backendApi.createWorkout({ date, title: '新增训练' });
+    setWorkouts([...workouts, workout]);
   };
 
-  const updateWorkout = (workout: Workout) => setWorkouts(workouts.map((item) => (item.id === workout.id ? stamp(workout) : item)));
-  const removeWorkout = (id: string) => {
+  const updateWorkout = async (workout: Workout) => {
+    const updated = await backendApi.updateWorkout(workout.id, {
+      title: workout.title,
+      durationMinutes: workout.durationMinutes,
+      estimatedCalories: workout.estimatedCalories
+    });
+    setWorkouts(workouts.map((item) => (item.id === updated.id ? { ...updated, items: item.items } : item)));
+  };
+
+  const removeWorkout = async (id: string) => {
     if (window.confirm('删除这张训练卡片？')) {
+      await backendApi.deleteWorkout(id);
       setWorkouts(workouts.filter((workout) => workout.id !== id));
     }
   };
 
-  const addItem = (workout: Workout) => {
-    const timestamp = nowISO();
-    updateWorkout({
-      ...workout,
-      items: [
-        ...workout.items,
-        { id: crypto.randomUUID(), workoutId: workout.id, name: '', detail: '', note: '', createdAt: timestamp, updatedAt: timestamp }
-      ]
-    });
+  const addItem = async (workout: Workout) => {
+    const item = await backendApi.createWorkoutItem(workout.id, { name: '', detail: '', note: '' });
+    setWorkouts(workouts.map((entry) => (entry.id === workout.id ? { ...entry, items: [...entry.items, item] } : entry)));
   };
 
-  const updateItem = (workout: Workout, item: WorkoutItem) => {
-    updateWorkout({ ...workout, items: workout.items.map((old) => (old.id === item.id ? stamp(item) : old)) });
+  const updateItem = async (workout: Workout, item: WorkoutItem) => {
+    const updated = await backendApi.updateWorkoutItem(item.id, item);
+    setWorkouts(workouts.map((entry) => (entry.id === workout.id ? { ...entry, items: entry.items.map((old) => (old.id === updated.id ? updated : old)) } : entry)));
   };
 
-  const removeItem = (workout: Workout, id: string) => {
-    updateWorkout({ ...workout, items: workout.items.filter((item) => item.id !== id) });
+  const removeItem = async (workout: Workout, id: string) => {
+    await backendApi.deleteWorkoutItem(id);
+    setWorkouts(workouts.map((entry) => (entry.id === workout.id ? { ...entry, items: entry.items.filter((item) => item.id !== id) } : entry)));
   };
 
   return (
@@ -75,7 +64,7 @@ export function FitnessModule({ workouts, setWorkouts, date }: { workouts: Worko
               <input
                 className="title-input"
                 value={workout.title}
-                onChange={(event) => updateWorkout({ ...workout, title: event.target.value || '新训练' })}
+                onChange={(event) => updateWorkout({ ...workout, title: event.target.value || '新增训练' })}
               />
               <button type="button" className="icon-button danger" onClick={() => removeWorkout(workout.id)} aria-label="删除训练">
                 <Trash2 size={17} />

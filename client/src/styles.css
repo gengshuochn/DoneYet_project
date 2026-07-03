@@ -689,6 +689,19 @@ label {
   margin-top: 14px;
 }
 
+.api-status {
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, .72);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.api-status.error {
+  border-color: rgba(255, 110, 110, .28);
+  color: #ff9a9a;
+}
+
 @media (max-width: 1180px) {
   .topbar {
     grid-template-columns: 1fr;
